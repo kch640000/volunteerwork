@@ -417,8 +417,8 @@ function renderWho(){const has=!!(who&&who.cls&&who.num&&who.name);
   if(has){$("id-who").textContent=`${sidOf(who)} ${who.name||""} (2학년 ${who.cls}반 ${who.num}번)`;
     const sy=$("sync");if(!DB){sy.textContent="(이 화면에서는 선생님께 저장되지 않아요. 연습은 그대로 할 수 있어요.)";sy.className="sync";}}}
 (function(){const c=document.getElementById("id-cls"),n=document.getElementById("id-num");
-  c.innerHTML='<option value="">-</option>'+Array.from({length:12},(_,i)=>`<option>${i+1}</option>`).join("");
-  n.innerHTML='<option value="">-</option>'+Array.from({length:40},(_,i)=>`<option>${i+1}</option>`).join("");
+  c.innerHTML='<option value="">-</option>'+Array.from({length:14},(_,i)=>`<option>${i+1}</option>`).join("");
+  n.innerHTML='<option value="">-</option>'+Array.from({length:33},(_,i)=>`<option>${i+1}</option>`).join("");
   const nm=document.getElementById("id-name");
   if(who){c.value=who.cls;n.value=who.num;nm.value=who.name||"";}
   document.getElementById("id-save").onclick=()=>{const cv=+c.value,nv=+n.value,nn=nm.value.trim().slice(0,10);if(!cv||!nv||!nn){(!cv?c:!nv?n:nm).focus();return;}who={cls:cv,num:nv,name:nn};try{localStorage.setItem("angus-who",JSON.stringify(who));}catch(e){}renderWho();};
