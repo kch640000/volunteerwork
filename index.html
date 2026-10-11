@@ -191,6 +191,8 @@ details.plan summary{cursor:pointer;font-weight:700}
 .idbar select{font:inherit;padding:6px 8px;border-radius:8px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink)}
 .sync{font-size:12.5px;color:var(--muted)}
 .sync.ok{color:var(--good)}.sync.err{color:var(--bad)}
+.submit-box{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--yarn-soft)}
+.btn.submit{font-size:16px;padding:12px 18px;background:var(--mustard);border-color:var(--mustard);color:#1b1405}
 footer{margin-top:28px;color:var(--muted);font-size:12.5px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
@@ -208,7 +210,7 @@ footer{margin-top:28px;color:var(--muted);font-size:12.5px}
   </header>
   <div class="stitch" aria-hidden="true"></div>
   <div class="idbar need" id="idbar">
-    <div id="id-view" hidden><span class="who" id="id-who"></span> <span class="sync" id="sync">채점 결과가 선생님께 저장돼요.</span></div>
+    <div id="id-view" hidden><span class="who" id="id-who"></span> <span class="sync" id="sync">채점할 때마다 연습 기록이 저장되고, 다 고친 뒤 <b>선생님께 제출하기</b>를 누르면 제출돼요.</span></div>
     <div class="row" id="id-edit">
       <b>먼저 반·번호·이름을 입력해 주세요</b>
       <span class="row" style="gap:6px">2학년
@@ -425,12 +427,18 @@ function renderWho(){const has=!!(who&&who.cls&&who.num&&who.name);
   document.getElementById("id-change").onclick=()=>{$("id-view").hidden=true;$("id-edit").hidden=false;$("id-change").hidden=true;$("idbar").classList.add("need");};
 })();
 function needWho(){if(who&&who.cls&&who.num&&who.name)return false;$("idbar").scrollIntoView({behavior:"smooth",block:"center"});$("id-cls").focus();return true;}
-function cloudSave(rec){if(!DB||!who)return;const sy=$("sync");sy.textContent="저장하는 중…";sy.className="sync";
+function cloudSave(rec){if(!DB||!who)return Promise.reject("nodb");const sy=$("sync");const isSub=!!rec.sub;if(!isSub){sy.textContent="연습 기록 저장 중…";sy.className="sync";}
   const doc=Object.assign({cls:who.cls,num:who.num,sid:sidOf(who),name:who.name,dev:devId,ts:FV.serverTimestamp()},rec);
   if(typeof doc.text==="string")doc.text=doc.text.slice(0,3000);
   Object.keys(doc).forEach(k=>{if(doc[k]===undefined||doc[k]===null)delete doc[k];});
-  DB.collection("results").add(doc).then(()=>{const d=new Date();sy.textContent=`✓ 선생님께 저장됨 (${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")})`;sy.className="sync ok";})
-    .catch(()=>{sy.textContent="⚠ 저장하지 못했어요. 인터넷 연결을 확인해 주세요. (연습 기록은 이 기기에 남아요)";sy.className="sync err";});}
+  const hm=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+  return DB.collection("results").add(doc).then(()=>{if(!isSub){sy.textContent=`✓ 연습 기록 저장됨 (${hm()})`;sy.className="sync ok";}return hm();})
+    .catch(e=>{if(!isSub){sy.textContent="⚠ 연습 기록을 저장하지 못했어요. 인터넷 연결을 확인해 주세요.";sy.className="sync err";}throw e;});}
+function submitBtnHtml(id,label){return `<div class="submit-box"><button class="btn submit" id="${id}">📮 ${label}</button><span class="sync" id="${id}-msg">${DB?"제출하면 선생님이 이 점수와 내용을 확인해요. 여러 번 제출하면 마지막 제출을 봐요.":"이 화면에서는 제출할 수 없어요. 선생님이 알려 준 주소로 들어와 주세요."}</span></div>`;}
+function wireSubmit(id,rec){const b=$(id);if(!b)return;if(!DB){b.disabled=true;return;}
+  b.onclick=()=>{if(needWho())return;b.disabled=true;const m=$(id+"-msg");m.textContent="제출하는 중…";m.className="sync";
+    cloudSave(Object.assign({},rec,{sub:true})).then(t=>{m.textContent=`✓ 선생님께 제출했어요 (${t}). 더 고쳐서 다시 제출해도 돼요.`;m.className="sync ok";b.textContent="📮 다시 제출하기";b.disabled=false;})
+      .catch(()=>{m.textContent="⚠ 제출하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.";m.className="sync err";b.disabled=false;});};}
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ================= rubric (2026 2학년 2학기 평가계획 수행평가 세부기준) ================= */
@@ -700,6 +708,7 @@ function renderWCard(g,prev,txt){lastW={g,txt};$("w-empty").hidden=true;const ca
        <span class="wc">${g.wc}단어 · ${g.sc}문장 · 오류 ${g.issues.length}곳</span>
      </div>
    </div>
+   ${isExample?"":submitBtnHtml("btn-w-sub","이 글을 선생님께 제출하기")}
    <div style="margin-top:8px">${g.crit.map((c,i)=>critHtml(c,prev?prev.c[i]:null)).join("")}</div>
    ${g.issues.length?`<h3>고칠 곳 (철자·문법 ${g.issues.length}곳)</h3><div class="marked">${markHtml(txt,g.issues)}</div>${errListHtml(g.issues)}`:""}
    ${ups.length?`<div class="todo"><h3>점수를 올리려면</h3><ol>${ups.slice(0,3).map(c=>`<li><b>${esc(c.name.slice(0,1))}</b> ${c.pts}→${c.pts+1}점: ${esc(c.up||"")}</li>`).join("")}</ol></div>`:`<div class="todo"><h3>만점이에요!</h3><p style="margin:0">채점기준을 모두 갖췄어요. 키워드 메모 5개만 보고 다시 써 보는 연습을 해 보세요.</p></div>`}
@@ -708,6 +717,7 @@ function renderWCard(g,prev,txt){lastW={g,txt};$("w-empty").hidden=true;const ca
      <div class="ai-out" id="w-ai-out"></div>
    </div>
    <p class="note">채점기준표를 바탕으로 한 <b>연습용 예상 점수</b>예요. 실제 점수는 선생님 채점으로 정해져요.</p>`;
+  if(!isExample)wireSubmit("btn-w-sub",{type:"w",total:g.total,crit:g.crit.map(c=>c.pts),wc:g.wc,err:g.issues.length,text:txt});
   wireAI();}
 
 /* ================= optional AI ================= */
@@ -865,7 +875,7 @@ function checkScript(id){const q=QMAP[id];const s=(store.scripts[id]||"").trim()
 /* ================= speaking UI ================= */
 renderScripts();
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let peeked=false,mode="exam",examPair=[],examStep=0,examScores=[],curQ=null;
+let examTexts=[],peeked=false,mode="exam",examPair=[],examStep=0,examScores=[],curQ=null;
 const picker=$("pick-q");picker.innerHTML=QS.map(q=>`<option value="${q.id}">Q${q.id} ${esc(q.en)}</option>`).join("");
 function setInputMode(live){$("live-ui").hidden=!live;$("dict-ui").hidden=live;}
 function showBanner(h){const b=$("mic-banner");b.innerHTML=h;b.hidden=false;}
@@ -925,12 +935,13 @@ function scoreSpeech(said,o){if(needWho())return;const q=curQ;const script=(stor
   cloudSave({type:"s",q:q.id,total:a.total,crit:a.crit.map(c=>c.pts),acc:a.acc,wpm:o.mode==="live"?a.wpm:null,mode:o.mode,peek:peeked,text:said});if(store.sHist.length>120)store.sHist.shift();save();
   lastS={q,said,a};renderSCard(q,said,a,prev,o);
   if(window.innerWidth<900)$("s-result").scrollIntoView({behavior:"smooth",block:"start"});
-  if(mode==="exam"){examScores[examStep]=a.total;
+  if(mode==="exam"){examScores[examStep]=a.total;examTexts[examStep]=`[Q${q.id}] `+said;
     if(examStep===0){examStep=1;setQ(examPair[1]);$("s-sum").innerHTML=`<div class="sum20"><span>1차 ${a.total}/10점 · 이제 왼쪽에서 2차 질문에 답해요 →</span></div>`;}
     else{const tot=examScores[0]+examScores[1];const pe=store.exam.length?store.exam[store.exam.length-1].total:null;
       store.exam.push({t:Date.now(),total:tot,q:[examPair[0].id,examPair[1].id]});save();
       cloudSave({type:"x",total:tot,q:examPair[0].id+"+"+examPair[1].id,crit:[examScores[0],examScores[1]]});
-      $("s-sum").innerHTML=`<div class="sum20"><span class="big">${tot}<small style="font-size:16px"> / 20</small></span><div><b>실전 모드 예상 점수</b> · ${band(tot,20)} ${deltaHtml(tot,pe)}<br><span class="hint" style="margin:0">1차 ${examScores[0]} + 2차 ${examScores[1]}</span></div><button class="btn small" id="btn-again">새 질문으로 다시</button></div>`;
+      $("s-sum").innerHTML=`<div class="sum20"><span class="big">${tot}<small style="font-size:16px"> / 20</small></span><div><b>실전 모드 예상 점수</b> · ${band(tot,20)} ${deltaHtml(tot,pe)}<br><span class="hint" style="margin:0">1차 ${examScores[0]} + 2차 ${examScores[1]}</span></div><button class="btn small" id="btn-again">새 질문으로 다시</button></div>${submitBtnHtml("btn-x-sub","실전 점수를 선생님께 제출하기")}`;
+      wireSubmit("btn-x-sub",{type:"x",total:tot,q:examPair[0].id+"+"+examPair[1].id,crit:[examScores[0],examScores[1]],text:examTexts.join(" / ")});
       $("btn-again").onclick=newExam;}}}
 function renderSCard(q,said,a,prev,o){$("s-empty").hidden=true;const c=$("s-card");c.hidden=false;
   const diffHtml=a.diff?a.diff.map(x=>x.t==="m"?`<span class="m">${esc(x.w)}</span>`:x.t==="x"?`<span class="x">${esc(x.w)}</span>`:x.t==="s"?`<span class="s">${esc(x.w)} <small>(${esc(x.heard)}?)</small></span>`:`<span class="e">${esc(x.w)}</span>`).join(" "):"";
@@ -949,6 +960,7 @@ function renderSCard(q,said,a,prev,o){$("s-empty").hidden=true;const c=$("s-card
      <div class="stat"><b>${a.sentN}</b><span>문장(추정)</span></div>
      <div class="stat"><b>${o.mode==="live"?a.hes:"—"}</b><span>머뭇거림</span></div>
    </div>
+   ${mode==="one"?submitBtnHtml("btn-s-sub","이 답변을 선생님께 제출하기"):`<p class="hint" style="margin:10px 0 0">실전 모드는 2문항을 모두 답하면 아래에 <b>제출하기</b> 버튼이 나와요.</p>`}
    <div>${a.crit.map(cr=>critHtml(cr,prev&&prev.c?prev.c[a.crit.indexOf(cr)]:null)).join("")}</div>
    ${a.diff?`<h3>대본과 비교한 내 발음</h3><p class="hint" style="margin:0 0 4px"><span style="color:var(--good)">초록</span> 잘 들림 · <span style="color:var(--bad)">빨강 밑줄</span> 다르게 들림(괄호 안이 들린 말) · <span style="color:var(--bad)">취소선</span> 안 들림 · <span style="color:var(--warn)">주황</span> 대본에 없던 말</p><div class="diff">${diffHtml}</div>`
      :`<h3>내가 말한 내용 (인식 결과)</h3><div class="diff">${esc(said)}</div>${store.scripts[q.id]?"":`<p class="hint">1단계에서 이 질문의 대본을 적어 두면 단어별 발음 피드백을 받을 수 있어요.</p>`}`}
@@ -966,6 +978,7 @@ function renderSCard(q,said,a,prev,o){$("s-empty").hidden=true;const c=$("s-card
   c.querySelectorAll("[data-retry]").forEach(b=>b.onclick=()=>wordRetry(b.dataset.retry,b,$("res-"+b.dataset.i)));
   $("btn-model").onclick=()=>speak(store.scripts[q.id]||said,0.95);
   $("btn-retry").onclick=()=>{if(mode==="exam"&&examStep===1&&q===examPair[0]){examStep=0;examScores=[];$("s-sum").innerHTML="";}setQ(q);$("stage").scrollIntoView({behavior:"smooth",block:"start"});};
+  if(mode==="one")wireSubmit("btn-s-sub",{type:"s",q:q.id,total:a.total,crit:a.crit.map(c=>c.pts),acc:a.acc,wpm:o.mode==="live"?a.wpm:null,mode:o.mode,peek:peeked,text:said});
   wireSAI();}
 function wireSAI(){const box=$("s-ai");if(!box)return;if(!SAMPLE){box.hidden=true;return;}box.hidden=false;const b=$("btn-s-ai");if(b.dataset.w)return;b.dataset.w="1";
   b.onclick=async()=>{if(!lastS)return;const out=$("s-ai-out");b.disabled=true;out.innerHTML=`<p class="hint">생각하는 중…</p>`;const {q,said,a}=lastS;
