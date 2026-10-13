@@ -170,8 +170,11 @@ ul.why{margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:col
 .stage .bigq{font-family:var(--f-en);font-size:clamp(18px,2.6vw,22px);font-weight:600;line-height:1.4;margin:4px 0}
 .mic{width:80px;height:80px;border-radius:50%;border:0;background:var(--yarn);color:var(--paper);font-size:14px;font-weight:700;cursor:pointer;flex:0 0 auto;line-height:1.25}
 .mic.rec{background:var(--bad);animation:pulse 1.2s infinite}
+.btn.rec-on{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff!important;animation:pulse 1.2s infinite;opacity:1!important}
+.listening{color:var(--bad);font-weight:700}
+.typo-note{font-size:13.5px;background:var(--warn-soft);border-radius:8px;padding:8px 10px;margin-top:8px}
 @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--bad) 50%,transparent)}100%{box-shadow:0 0 0 16px transparent}}
-@media (prefers-reduced-motion:reduce){.mic.rec{animation:none}}
+@media (prefers-reduced-motion:reduce){.mic.rec,.btn.rec-on{animation:none}}
 .live{font-family:var(--f-en);min-height:64px;background:var(--bg);border-radius:10px;padding:10px 12px;font-size:16px}
 .live .interim{color:var(--muted)}
 .timer{font-family:var(--f-en);font-variant-numeric:tabular-nums;font-size:20px;font-weight:600}
@@ -410,7 +413,7 @@ footer{margin-top:28px;color:var(--muted);font-size:12.5px}
     </div>
   </section>
 
-  <footer><b>[버전 6 · 최종 활동지 반영]</b> 배곧해솔중학교 2학년 영어 · Be the Angus of Our Town · 점수는 채점기준표를 바탕으로 한 연습용 예상 점수이며, 실제 점수는 선생님 채점으로 정해집니다.</footer>
+  <footer><b>[버전 7 · 다시 녹음·유연 채점]</b> 배곧해솔중학교 2학년 영어 · Be the Angus of Our Town · 점수는 채점기준표를 바탕으로 한 연습용 예상 점수이며, 실제 점수는 선생님 채점으로 정해집니다.</footer>
 </div>
 
 <script>
@@ -519,7 +522,8 @@ function ed(a,b){if(Math.abs(a.length-b.length)>2)return 9;const m=[];for(let i=
 function suggest(w){let best=null,bd=3;for(let i=0;i<FREQ.length&&i<20000;i++){const c=FREQ[i];if(Math.abs(c.length-w.length)>2)continue;const d=ed(w,c);if(d<bd){bd=d;best=c;if(d===1)break;}}return bd<=2?best:null;}
 function known(w){if(DICT.has(w))return true;
   const st=[w.replace(/'s$/,""),w.replace(/s$/,""),w.replace(/es$/,""),w.replace(/ies$/,"y"),w.replace(/ed$/,""),w.replace(/d$/,""),w.replace(/ing$/,""),w.replace(/ing$/,"e"),w.replace(/ly$/,""),w.replace(/er$/,""),w.replace(/est$/,"")];
-  return st.some(s=>s!==w&&s.length>=4&&DICT.has(s));}
+  if(st.some(s=>s!==w&&s.length>=4&&DICT.has(s)))return true;
+  for(let k=3;k<=w.length-3;k++){const a=w.slice(0,k),b=w.slice(k);if(DICT.has(a)&&(DICT.has(b)||DICT.has(b.replace(/s$/,""))))return true;}return false;}
 
 /* ================= text helpers ================= */
 const CONTR={"i'm":"i am","i'll":"i will","i've":"i have","i'd":"i would","you're":"you are","you'll":"you will","we're":"we are","we'll":"we will","they're":"they are","they'll":"they will","it's":"it is","that's":"that is","there's":"there is","here's":"here is","what's":"what is","let's":"let us","don't":"do not","doesn't":"does not","didn't":"did not","can't":"can not","cannot":"can not","won't":"will not","isn't":"is not","aren't":"are not","wasn't":"was not","he's":"he is","she's":"she is","who's":"who is","how's":"how is","where's":"where is","couldn't":"could not","wouldn't":"would not","shouldn't":"should not","people's":"people"};
@@ -702,21 +706,26 @@ function detect(secs){if(typeof secs==="string")secs={intro:secs,body:"",concl:"
   const onlyOne=[I,B,C].filter(x=>x.length).length<=1;const A=I.concat(B,C);
   const d={I,B,C};
   const townRe=/\b(my town|our town|town|neighborhood|neighbourhood|village|community|baegot|siheung|city|park|street|school|beach)\b/;
-  const probRe=/\b(there (is|are|was|were)|many|a lot of|lots of|no |not |don't|doesn't|can't|couldn't|dirty|trash|garbage|litter|dark|dangerous|hungry|sick|cold|alone|lonely|few|need|needs|problem|old|poor|homeless|stray|broken|messy|noisy|unsafe|hard|difficult|nobody|no one|thefts?|steal|crime|wild)\b/;
+  const probRe=/\b(there (is|are|was|were)|many|a lot of|lots of|no |not |don't|doesn't|can't|couldn't|dirty|trash|garbage|litter|dark|dangerous|hungry|sick|cold|alone|lonely|few|need|needs|problem|old|poor|homeless|stray|broken|messy|noisy|unsafe|hard|difficult|nobody|no one|thefts?|steal|crime|wild|less|lack|too many|too much|polluted|pollution|smell|waste|alone|lost|bored|tired|unhappy|sad|empty|closed)\b/;
   const P=onlyOne?A:I.concat(B);
-  const pIdx=P.findIndex(s=>townRe.test(s)&&probRe.test(s));d.problem=pIdx>=0;d.probSent=pIdx>=0?P[pIdx]:"";
-  d.cause=d.problem&&(/\b(because|since|as a result|so)\b/.test(d.probSent)||P.some(s=>s!==d.probSent&&/^(this is because|it is because|because of)\b/.test(s)));
+  let pIdx=P.findIndex(s=>townRe.test(s)&&probRe.test(s));
+  if(pIdx<0&&!onlyOne&&I.length)pIdx=I.findIndex(s=>probRe.test(s)&&!/\b(want|hope|wish) to (be|become)\b/.test(s));
+  if(pIdx<0)pIdx=P.findIndex(s=>probRe.test(s)&&/\b(people|cats?|dogs?|animals|kids|children|students|seniors|streets?|parks?|beach|trash|elderly|neighbors)\b/.test(s)&&!/\b(want|hope|wish) to (be|become)\b/.test(s));d.problem=pIdx>=0;d.probSent=pIdx>=0?P[pIdx]:"";
+  const CAUSE=/\b(because|since|so|as a result|due to|because of|the reason|that's why|that is why|this is why|so that|when|if|without|nobody|no one|not enough|too many|too much|too few|don't have|doesn't have|can't|cannot|couldn't)\b/;
+  const pPos=P.indexOf(d.probSent);
+  d.cause=d.problem&&(CAUSE.test(d.probSent.replace(/^in my town,?\s*/,""))&&/\b(because|since|so|due to|because of|reason|why|when|if|without|nobody|no one|not enough|too|can't|cannot|couldn't|don't have|doesn't have)\b/.test(d.probSent)||P.slice(pPos+1,pPos+3).some(s=>/^(this is because|it is because|because|that's because|the reason|they|it|there|nobody|no one|people|so)\b/.test(s)&&CAUSE.test(s)&&!/\b(want|hope) to (be|become)\b/.test(s)));
   const jobRe=/\b(want|wants|hope|would like|will|am going|dream is|plan|wish) to (be|become|bec\w+) (a|an) ((?:kind |good |great |famous |warm |nice )?[a-z]+(?: (?:officer|maker|designer|engineer|worker|developer|teacher|artist|scientist|player|chef|doctor|nurse|keeper|reporter|writer|planner|trainer|counselor|groomer|stylist|installer))?)/;
   const jobRe2=/\b(i am|i'm) (a|an) ([a-z]+(?: [a-z]+)?)\b/;
   const J=onlyOne?A:I.concat(B);
   let ji=J.findIndex(s=>jobRe.test(s));d.jobSent=ji>=0?J[ji]:"";const jm=ji>=0?J[ji].match(jobRe):null;d.job=jm?jm[4]:"";
   if(!d.job){const k=J.findIndex(s=>jobRe2.test(s));if(k>=0){d.jobSent=J[k];d.job=J[k].match(jobRe2)[3];}}
-  d.jobReason=!!d.jobSent&&/\bbecause\b|\bso (that )?i can\b|\bto help\b/.test(d.jobSent);
-  d.link=J.some(s=>/\b(so|that's why|that is why|this is why|connected|can help|can solve|solve|with my job|as a|because)\b/.test(s)&&(/\b(job|work|as a|as an)\b/.test(s)||s===d.jobSent)&&/\b(help|solve|connected|problem|make|give|take care|protect|clean|save|fix|feed|treat|teach|cook|keep)\b/.test(s));
+  d.jobReason=!!d.jobSent&&/\bbecause\b|\bso (that )?i can\b|\bso\b|\bto (help|make|keep|protect|save|clean|teach|treat|solve|give|take care|stop|fix|feed|cook)\b|\bsince\b|\bwho\b|\bwhere i can\b/.test(d.jobSent.replace(/^.*?to (be|become) (a|an) [a-z]+( [a-z]+)?/,""));
+  const jobWord=d.job?d.job.split(" ").pop():"@@";
+  d.link=J.some(s=>(/\b(so|that's why|that is why|this is why|connected|can|could|will|solve|with my job|as a|as an|because|by)\b/.test(s))&&(/\b(job|work|as a|as an|i can|i could)\b/.test(s)||s===d.jobSent||new RegExp("\\b"+jobWord+"s?\\b").test(s))&&/\b(help|solve|connected|problem|make|give|take care|protect|clean|save|fix|feed|treat|teach|cook|keep|stop|catch|build|design|plant|pick|change)\b/.test(s));
   // body
   const BB=onlyOne||!B.length?A.filter(s=>s!==d.jobSent):B;const bl=BB.join(" ");
-  d.where=new RegExp(`\\b(at|in|to|near|around)\\s+(the\\s+|a\\s+|an\\s+|my\\s+|our\\s+)?([a-z]+\\s+){0,2}(${PLACE})\\b`).test(bl);
-  d.when=/\b(every|each|once|twice)\b|\bon (mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?)\b|\b(weekend|weekends|after school|in the morning|in the afternoon|in the evening|at night|vacation|holiday|holidays|this summer|this winter|this year|next year|monthly|weekly)\b/.test(bl);
+  d.where=new RegExp(`\\b(at|in|to|near|around|on)\\s+(the\\s+|a\\s+|an\\s+|my\\s+|our\\s+)?([a-z]+\\s+){0,2}(${PLACE})\\b`).test(bl)||/\b(volunteer|work|go|help|visit|stay|be)\w*\b[^.]*\b(at|in|near|around) (the|a|an|my|our|this|local) [a-z]{3,}/.test(bl);
+  d.when=/\b(every|each|once|twice|during|weekends?|daily|sometimes|often|always|tomorrow|today|in (spring|summer|fall|autumn|winter)|on (the )?weekends?|in my free time|after class|before school)\b|\bon (mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?)\b|\b(weekend|weekends|after school|in the morning|in the afternoon|in the evening|at night|vacation|holiday|holidays|this summer|this winter|this year|next year|monthly|weekly)\b/.test(bl);
   d.withW=/\bwith (my|our|the|some|other|a few|many|his|her|their|friends|family|classmates|neighbors|neighbours|volunteers|people|students|teachers|team|club|parents|mom|dad|brother|sister|coworkers|co-workers|members)\b/.test(bl);
   d.method=[d.where,d.when,d.withW].filter(Boolean).length;
   const acts=BB.filter(s=>/\b(i|we) (will|am going to|are going to|'ll|can|plan to)\b|\b(first|second|third|then|next|finally|also)\b/.test(s)
@@ -729,12 +738,13 @@ function detect(secs){if(typeof secs==="string")secs={intro:secs,body:"",concl:"
   const rs=CC.find(s=>/\b(hope|want|wish|would like|try|dream|will|plan) to (be|bec\w+)\b|\bwill (be|become) (a|an)\b/.test(s));
   d.resSent=rs||"";d.resolve=null;
   if(rs){const m=rs.replace(/[.!?]$/,"").match(resRe);const whoPart=(rs.match(/\bwho\s+(.+?)[.!?]?$/)||[])[1]||"";d.resWho=whoPart;d.resNoun=m?m[4].trim():"";
-    d.resolve=whoPart&&norm(whoPart).length>=2?"clear":"mention";d.resPerson=/\b(person|people|man|woman|human)\b/.test(d.resNoun);}
+    const extra=rs.replace(/^.*?to (be|bec\w+)\s+(a|an)?\s*/,"").replace(/[.!?]$/,"");
+    d.resolve=(whoPart&&norm(whoPart).length>=2)||/\b(who|that|to|and|for|with)\b\s+\w+\s+\w+/.test(extra)||norm(extra).length>=2?"clear":"mention";d.resPerson=/\b(person|people|man|woman|human)\b/.test(d.resNoun);}
   const mk=new RegExp(`\\b(make|makes|will make|keep|keeps)\\s+((?:[a-z']+\\s+){0,4}?)(${ADJ})\\b`);
   const es=CC.find(s=>mk.test(s));d.expSent=es||"";d.expect=null;
   if(es){const m=es.match(mk);const q=objQuality(m[2]);d.expObj=m[2].trim();d.expAdj=m[3];
     if(q.ok)d.expect="clear";else{d.expect="mention";d.expBad=q.why==="bad"?q.bad:["(대상 없음)"];}}
-  else{const e2=new RegExp(`\\b(town|people|neighbors|neighbours|community|village|streets?|parks?|everyone|animals|seniors|children|kids)\\b[^.]*\\b(will|can)\\s+(be|become|feel|get|look|live|have|smile)\\b`);
+  else{const e2=new RegExp(`\\b(town|people|neighbors|neighbours|community|village|streets?|parks?|everyone|animals|seniors|children|kids|students|cats|dogs|birds|beach|world|city|they|it)\\b[^.]*\\b(will|can|could)\\s+(be|become|feel|get|look|live|have|smile|enjoy|play|walk|eat|sleep|learn|go|stay)\\b`);
     const s2=CC.find(s=>e2.test(s));if(s2){d.expSent=s2;d.expect="clear";}
     else{const s3=CC.find(s=>/\b(happy|happier|better|clean|cleaner|safe|safer|warm|smile|change|good|nice|beautiful)\b/.test(s));if(s3){d.expSent=s3;d.expect="mention";}}}
   return d;}
@@ -895,17 +905,17 @@ function wireAI(){const box=$("w-ai");if(!box)return;if(!SAMPLE){box.hidden=true
 /* ================= speaking data ================= */
 const QS=[
  {id:"1-1",r:1,en:"Can you tell me why you chose your job?",ko:"그 직업을 왜 선택했는지 말해 줄 수 있나요?",frame:"Let me tell you why I chose my job. I am a(n) ___ and I love ___. I want to solve ___ with my job.",
-  start:"Let me tell you why I chose my job.",need:[[/\b(i am|i'm) (a|an)\b/,"내 직업 소개","I'm a vet."],[/\b(because|love|like|want to|interested|dream|so i|enjoy)\b/,"직업을 고른 이유","I love animals, and I want to help sick cats with my job."]]},
+  start:"Let me tell you why I chose my job.",need:[[/\b(i am|i'm|my job is|as) (a|an)\b|\bi (chose|became|want) to (be|become)\b|\bmy job\b/,"내 직업 소개","I'm a vet."],[/\b(because|love|like|want to|interested|dream|so|enjoy|help|to (help|make|keep|save|protect|teach|solve)|happy when|good at|care about)\b/,"직업을 고른 이유","I love animals, and I want to help sick cats with my job."]]},
  {id:"1-2",r:1,en:"I wonder where you will do your volunteer work.",ko:"어디에서 봉사활동을 할지 궁금해요.",frame:"I'll tell you where I will do my volunteer work. I will work at ___. I will go there every ___.",
-  start:"I'll tell you where I will do my volunteer work.",need:[[new RegExp(`\\b(at|in|near|around)\\s+(the\\s+|a\\s+|an\\s+|my\\s+|our\\s+)?([a-z]+\\s+){0,2}(${PLACE})\\b`),"봉사할 장소 (at the ~)","I will work at the animal shelter."],[/\b(every|each|on (mon|tues|wednes|thurs|fri|satur|sun)days?|weekend|after school|in the (morning|afternoon|evening))\b/,"언제 하는지 (every ~)","I will go there every Saturday."]]},
+  start:"I'll tell you where I will do my volunteer work.",need:[[new RegExp(`\\b(at|in|near|around|on)\\s+(the\\s+|a\\s+|an\\s+|my\\s+|our\\s+|this\\s+|local\\s+)?([a-z]+\\s+){0,2}(${PLACE})\\b|\\b(at|in|near|around) (the|a|an|my|our|this|local) [a-z]{3,}`),"봉사할 장소 (at the ~)","I will work at the animal shelter."],[/\b(every|each|once|twice|during|weekends?|after school|after class|on (mon|tues|wednes|thurs|fri|satur|sun)days?|in the (morning|afternoon|evening)|at night|in (spring|summer|fall|autumn|winter)|vacation|holiday)\b/,"언제 하는지 (every ~)","I will go there every Saturday."]]},
  {id:"1-3",r:1,en:"I want to know what you will do for our town.",ko:"우리 마을을 위해서 무엇을 할지 알고 싶어요.",frame:"I'll tell you what I will do for our town. First, I will ___. Second, I will ___.",
-  start:"I'll tell you what I will do for our town.",need:[[/\b(first|i will|i'll|we will)\s+(?!tell\b)[a-z]+/,"할 일 ①","First, I will give food to the cats."],[/\b(second|also|then|and i will|next)\b/,"할 일 ② (Second, also)","Second, I will check if they are sick."]]},
+  start:"I'll tell you what I will do for our town.",need:[[/\b(first|i will|i'll|we will|we'll|i can|i'm going to)\s+(?!tell\b|do for\b)[a-z]+/,"할 일 ①","First, I will give food to the cats."],[/\b(second|also|then|next|finally|and (i|we) (will|can)|and [a-z]+ (them|the|people))\b/,"할 일 ② (Second, also)","Second, I will check if they are sick."]]},
  {id:"2-1",r:2,en:"What makes you excited about your job?",ko:"당신의 직업에서 무엇이 당신을 신나게 만드나요?",frame:"___ makes me excited. That's why I chose to be a(n) ___. I can ___ with my job.",
-  start:"Helping people makes me excited.",need:[[/\bmakes? me (excited|happy|proud|glad)\b/,"무엇이 나를 신나게 하는지 (~ makes me excited)","Helping sick animals makes me excited."],[/\b(i can|that's why|that is why|so i|chose)\b/,"그래서 직업으로 할 수 있는 일","That's why I chose to be a vet."]]},
+  start:"Helping people makes me excited.",need:[[/\b(makes?|made) me (feel )?(excited|happy|proud|glad|good|great)\b|\b(i am|i'm|i feel) (so |very |really )?(excited|happy|proud|glad) (when|because|to)\b|\bexcites me\b/,"무엇이 나를 신나게 하는지 (~ makes me excited)","Helping sick animals makes me excited."],[/\b(i can|i could|that's why|that is why|so i|chose|because|with my job|i will|i want to)\b/,"직업으로 할 수 있는 일·이유","That's why I chose to be a vet."]]},
  {id:"2-2",r:2,en:"How will you make our town better?",ko:"어떻게 우리 마을을 더 좋게 만들 건가요?",frame:"I will make our town ___. I will ___. I will also ___.",
-  start:"I will make our town better.",need:[[/\bmakes? (our|my|the) (town|village|community|neighborhood|streets?|parks?) [a-z]+/,"마을을 어떻게 바꿀지 (make our town + 형용사)","I will make our town safer."],[/\b(i will|i'll|also)\s+(?!make our)[a-z]+/,"구체적인 방법","I will walk around the streets at night."]]},
+  start:"I will make our town better.",need:[[new RegExp(`\\b(makes?|keeps?) (?:[a-z']+ ){1,3}(${ADJ})\\b|\\b(our|my|the) (town|village|community|neighborhood|streets?|parks?) will (be|become|look|feel)\\b|\\bkeeps? (our|my|the) (town|village|streets?|parks?) [a-z]+`),"마을을 어떻게 바꿀지 (make our town + 형용사)","I will make our town safer."],[/\b(i will|i'll|also|i can|we will|first|by)\s+(?!make (our|my|the) town)[a-z]+/,"구체적인 방법","I will walk around the streets at night."]]},
  {id:"2-3",r:2,en:"What will make people happy after your volunteer work?",ko:"봉사활동 후 무엇이 사람들을 행복하게 만들까요?",frame:"___ will make people happy. ___ can ___. ___ can ___.",
-  start:"My volunteer work will make people happy.",need:[[/\bmake (people|them|everyone|our neighbors|neighbors|kids|children|seniors|students|the animals|animals) (happy|smile|glad|warm|safe)\b/,"사람들을 행복하게 하는 것 (~ will make people happy)","Clean parks will make people happy."],[/\b(can|will be able to)\b/,"그래서 사람들이 할 수 있는 일 (People can ~)","Kids can play safely in the park."]]}
+  start:"My volunteer work will make people happy.",need:[[/\b(makes?|made|keeps?) (?:[a-z']+ ){1,3}(happy|happier|smile|glad|warm|safe|healthy|comfortable|feel|excited|proud|thankful)\b|\b(people|everyone|they|kids|children|neighbors) (will|can) (be|feel|smile|enjoy|have|live)\b/,"사람들을 행복하게 하는 것 (~ will make people happy)","Clean parks will make people happy."],[/\b(can|will be able to|will|could)\b/,"그래서 사람들이 할 수 있는 일 (People can ~)","Kids can play safely in the park."]]}
 ];
 const QMAP=Object.fromEntries(QS.map(q=>[q.id,q]));
 
@@ -966,6 +976,7 @@ function pronTip(exp,heard){const e=exp.toLowerCase(),h=(heard||"").toLowerCase(
   if(!tips.length)tips.push(heard?"천천히 들어 보고 강세와 모음 소리를 따라 해 보세요.":"이 단어가 들리지 않았어요. 빠뜨렸거나 너무 작게 말했어요.");
   return tips.join(" ");}
 
+const SPELLFIX={};
 function spokenForm(s){return s.replace(/\bI am\b/g,"I'm").replace(/\bI will\b/g,"I'll").replace(/\bIt is\b/g,"It's").replace(/\bit is\b/g,"it's").replace(/\bThat is\b/g,"That's").replace(/\bthat is\b/g,"that's").replace(/\bdo not\b/g,"don't").replace(/\bcan not\b/g,"can't").replace(/\bwe will\b/g,"we'll").replace(/\bWe will\b/g,"We'll").replace(/\bthey will\b/g,"they'll");}
 function correctedAnswer(q,said,issues,form){const fixable=issues.filter(o=>o.rep!=null);let base=fixedPlain(applyFixes(said,fixable)).trim();
   if(base&&!/[.!?]$/.test(base))base+=".";if(base&&/^[a-z]/.test(base))base=base[0].toUpperCase()+base.slice(1);
@@ -991,7 +1002,10 @@ function analyzeAnswer(q,said,o){
     [iw===0?"ok":iw<=1?"part":"no",issues.length===0?"언어 형식 오류가 없어요.":`언어 형식 오류 ${issues.length}곳 — 아래 <b>고쳐 말하기</b>를 보세요.`]];
   // ③ 발음·연음·축약 (3/2/1)
   let acc=null,diff=null,probs=[];
-  if(o.script&&o.mode!=="text"){const sw=expand(norm(o.script)),dw=expand(words);if(sw.length){const al=align(sw,dw);acc=Math.round(al.match/sw.length*100);diff=al.ops;
+  let typos=[];
+  if(o.script&&o.mode!=="text"){const sw0=expand(norm(o.script)),dw=expand(words);
+    const sw=sw0.map(w=>{if(w.length>2&&!known(w)&&!CONTR[w]){const sg=suggest(w);if(sg){SPELLFIX[w]=sg;if(!typos.some(t=>t[0]===w))typos.push([w,sg]);return sg;}}return w;});
+    if(sw.length){const al=align(sw,dw);acc=Math.round(al.match/sw.length*100);diff=al.ops;
     const seen=new Set();al.ops.forEach(x=>{if((x.t==="x"||x.t==="s")&&!seen.has(x.w)){seen.add(x.w);probs.push({w:x.w,heard:x.t==="s"?x.heard:null});}});}}
   else if(o.conf!=null&&o.mode==="live")acc=Math.round(o.conf*100);
   const contr=contractions(said);const secs=o.secs||0;const wpm=secs>2?Math.round(wn/secs*60):null;
@@ -1012,7 +1026,7 @@ function analyzeAnswer(q,said,o){
               {...S_RUBRIC[1],pts:f1,checks:fChecks,up:f1<3?(form.ok?"오류를 고치면 3점이에요.":`${q.r===1?"간접의문문":"5형식 구문"}을 정확히 넣어야 3점이에요.`):""},
               {...S_RUBRIC[2],pts:pScore,checks:pChecks,up:pScore<3?"빨간 단어를 듣고 따라 한 뒤, 끊지 말고 이어서(연음·축약) 다시 말해요.":""}];
   const corr=correctedAnswer(q,said,issues,form);
-  return {crit,total:o1+f1+pScore,acc,diff,probs,wpm,sentN,form,contr,wn,hes,issues,needs,corr};}
+  return {crit,total:o1+f1+pScore,acc,diff,probs,wpm,sentN,form,contr,wn,hes,issues,needs,corr,typos};}
 function stillMissing(q,txt){const l=txt.toLowerCase();return q.need.filter(([re])=>!re.test(l)).map(([re,label,eg])=>({label,eg}));}
 function speakFixHtml(q,said,a){const c=a.corr;const sp=spokenForm(c.text);const missing=stillMissing(q,c.text);
   const same=c.text.replace(/\s+/g," ").trim()===said.replace(/\s+/g," ").trim()&&!missing.length;
@@ -1084,7 +1098,7 @@ let rec=null,recOn=false,finals=[],confs=[],tStart=0,tFirst=0,tLast=0,lastEv=0,p
 function clock(el,from){clearInterval(tick);tick=setInterval(()=>{const s=Math.floor((Date.now()-from)/1000);el.textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");},250);}
 function micBlocked(){setInputMode(false);showBanner("<b>마이크를 쓸 수 없어요.</b> 브라우저에서 마이크 권한을 허용해 주세요. 지금은 아래 칸에서 <b>키보드 받아쓰기(🎤)</b>로 말하면 똑같이 채점돼요.");}
 $("btn-mic").onclick=()=>{if(recOn){stopReq=true;try{rec.stop();}catch(e){}return;}startRec();};
-function startRec(){finals=[];confs=[];pauses=0;tFirst=0;tLast=0;stopReq=false;
+function startRec(){if(wordRec){try{wordRec.abort();}catch(e){}wordRec=null;}finals=[];confs=[];pauses=0;tFirst=0;tLast=0;stopReq=false;
   try{rec=new SR();}catch(e){micBlocked();return;}
   rec.lang="en-US";rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=1;
   rec.onresult=ev=>{const now=Date.now();if(tFirst&&now-lastEv>2500)pauses++;if(!tFirst)tFirst=now;lastEv=now;tLast=now;
@@ -1106,14 +1120,35 @@ $("btn-dict-start").onclick=()=>{dStart=Date.now();$("dict").value="";clock($("t
 $("btn-dict-done").onclick=()=>{clearInterval(tick);const said=$("dict").value.trim();if(!said){$("dict").focus();return;}scoreSpeech(said,{mode:"dict",secs:dStart?(Date.now()-dStart)/1000:0});dStart=0;};
 
 /* single-word re-record (live mode only) */
-function wordRetry(word,btn,out){if(!SR){out.textContent="이 브라우저에서는 단어 녹음을 할 수 없어요. 🔊로 듣고 따라 해 보세요.";return;}
-  let r;try{r=new SR();}catch(e){out.textContent="마이크를 쓸 수 없어요.";return;}
-  r.lang="en-US";r.continuous=false;r.interimResults=false;r.maxAlternatives=5;btn.disabled=true;out.textContent=`🎤 "${word}"라고 말해 보세요…`;
-  let got=false;r.onresult=ev=>{got=true;const alts=[...ev.results[0]].map(a=>a.transcript.toLowerCase().trim());
-    const hit=alts.some(a=>expand(norm(a)).includes(word));out.innerHTML=hit?`<span style="color:var(--good)">✓ 좋아요! "${esc(word)}"로 잘 들렸어요.</span>`:`<span style="color:var(--bad)">✗ "${esc(alts[0])}"로 들렸어요.</span> ${esc(pronTip(word,alts[0].split(" ")[0]))}`;};
-  r.onerror=e=>{out.textContent=/not-allowed|audio-capture/.test(e.error)?"마이크 권한이 없어요.":"소리가 들리지 않았어요. 다시 눌러 보세요.";};
-  r.onend=()=>{btn.disabled=false;if(!got&&/말해 보세요/.test(out.textContent))out.textContent="소리가 들리지 않았어요. 다시 눌러 보세요.";};
-  try{r.start();}catch(e){btn.disabled=false;out.textContent="마이크를 쓸 수 없어요.";}}
+let wordRec=null;
+function sameWord(a,b){a=a.toLowerCase().replace(/[^a-z']/g,"");b=b.toLowerCase().replace(/[^a-z']/g,"");if(!a||!b)return false;if(a===b)return true;
+  if(a.replace(/s$/,"")===b.replace(/s$/,""))return true;return b.length>3&&ed(a,b)<=1;}
+function wordRetry(word,btn,out){
+  if(!SR){out.innerHTML="이 브라우저는 단어 녹음을 지원하지 않아요. 🔊 듣기로 따라 말해 보세요.";return;}
+  if(recOn){out.innerHTML="<span style='color:var(--bad)'>위의 큰 녹음 버튼을 먼저 끝내 주세요.</span>";return;}
+  if(wordRec){try{wordRec.abort();}catch(e){}wordRec=null;}
+  document.querySelectorAll("[data-retry]").forEach(b=>{b.disabled=true;});
+  const target=(SPELLFIX[word]||word);
+  let r;try{r=new SR();}catch(e){out.innerHTML="마이크를 쓸 수 없어요.";resetBtns();return;}
+  wordRec=r;r.lang="en-US";r.continuous=false;r.interimResults=true;r.maxAlternatives=5;
+  btn.classList.add("rec-on");btn.innerHTML="🔴 듣는 중";
+  out.innerHTML=`<span class="listening">🎤 지금 마이크에 대고 <b>"${esc(target)}"</b>라고 또박또박 말하세요. (말하고 1~2초 기다리면 결과가 나와요)</span>`;
+  let done=false,errShown=false;const killer=setTimeout(()=>{try{r.stop();}catch(e){}},7000);
+  r.onresult=ev=>{const res=ev.results[ev.results.length-1];
+    if(!res.isFinal){out.innerHTML=`<span class="listening">🎤 듣는 중… "${esc(res[0].transcript)}"</span>`;return;}
+    done=true;const alts=[...res].map(a=>a.transcript.toLowerCase().trim()).filter(Boolean);
+    const hit=alts.some(a=>a.split(/\s+/).some(w=>sameWord(target,w)));
+    const heard=(alts[0]||"").split(/\s+/)[0]||"";
+    out.innerHTML=hit?`<span style="color:var(--good);font-weight:700">✓ 좋아요! "${esc(target)}"로 잘 들렸어요. 문장 속에서도 이렇게 말해요.</span>`
+      :`<span style="color:var(--bad)">✗ "${esc(alts[0]||"")}"(으)로 들렸어요.</span> ${esc(pronTip(target,heard))} <br><small>🔊 듣기로 한 번 더 듣고 다시 눌러 보세요.</small>`;};
+  r.onerror=e=>{errShown=true;out.innerHTML=/not-allowed|service-not-allowed/.test(e.error)?"<span style='color:var(--bad)'>마이크 사용이 막혀 있어요. 주소창 왼쪽 🔒(자물쇠) → 마이크 → <b>허용</b>으로 바꾼 뒤 새로고침해 주세요.</span>"
+      :e.error==="audio-capture"?"<span style='color:var(--bad)'>마이크를 찾을 수 없어요. 이어폰 마이크나 기기 마이크가 연결돼 있는지 확인해 주세요.</span>"
+      :e.error==="no-speech"?"소리가 들리지 않았어요. 🎤 다시를 누르고 조금 더 크게 말해 보세요."
+      :e.error==="aborted"?"":"인식하지 못했어요. 🎤 다시를 한 번 더 눌러 보세요.";};
+  r.onend=()=>{clearTimeout(killer);wordRec=null;btn.classList.remove("rec-on");btn.innerHTML="🎤 다시";resetBtns();
+    if(!done&&!errShown)out.innerHTML="소리가 들리지 않았어요. 🎤 다시를 누르고 조금 더 크게 말해 보세요.";};
+  function resetBtns(){document.querySelectorAll("[data-retry]").forEach(b=>{b.disabled=false;});}
+  try{r.start();}catch(e){clearTimeout(killer);wordRec=null;btn.classList.remove("rec-on");btn.innerHTML="🎤 다시";resetBtns();out.innerHTML="녹음을 시작하지 못했어요. 잠시 뒤 다시 눌러 보세요.";}}
 
 let lastS=null,canMic=!!SR;
 function scoreSpeech(said,o){if(needWho())return;const q=curQ;const script=(store.scripts[q.id]||"").trim();
@@ -1152,7 +1187,8 @@ function renderSCard(q,said,a,prev,o){$("s-empty").hidden=true;const c=$("s-card
    <div>${a.crit.map(cr=>critHtml(cr,prev&&prev.c?prev.c[a.crit.indexOf(cr)]:null)).join("")}</div>
    ${a.diff?`<h3>대본과 비교한 내 발음</h3><p class="hint" style="margin:0 0 4px"><span style="color:var(--good)">초록</span> 잘 들림 · <span style="color:var(--bad)">빨강 밑줄</span> 다르게 들림(괄호 안이 들린 말) · <span style="color:var(--bad)">취소선</span> 안 들림 · <span style="color:var(--warn)">주황</span> 대본에 없던 말</p><div class="diff">${diffHtml}</div>`
      :`<h3>내가 말한 내용 (인식 결과)</h3><div class="diff">${esc(said)}</div>${store.scripts[q.id]?"":`<p class="hint">1단계에서 이 질문의 대본을 적어 두면 단어별 발음 피드백을 받을 수 있어요.</p>`}`}
-   ${a.probs.length?`<h3>발음 피드백 · 다시 연습할 단어</h3><ul class="pron">${a.probs.slice(0,8).map((p,i)=>`<li><span class="w">${esc(p.w)} ${p.heard?`<small>→ "${esc(p.heard)}"로 들림</small>`:`<small>→ 들리지 않음</small>`}</span>
+   ${a.typos&&a.typos.length?`<div class="typo-note">📝 <b>대본 철자 확인:</b> ${a.typos.map(([w,g])=>`${esc(w)} → <b>${esc(g)}</b>`).join(", ")} — 대본의 철자가 틀려서 맞는 단어로 바꿔 비교했어요. 1단계 대본을 고쳐 주세요. (발음 탓이 아니에요)</div>`:""}
+   ${a.probs.length?`<h3>발음 피드백 · 다시 연습할 단어</h3><p class="hint" style="margin:0 0 6px">🎤 다시를 누르면 버튼이 <b style="color:var(--bad)">빨갛게</b> 바뀌어요. 그때 그 단어만 말하세요.</p><ul class="pron">${a.probs.slice(0,8).map((p,i)=>`<li><span class="w">${esc(p.w)} ${p.heard?`<small>→ "${esc(p.heard)}"로 들림</small>`:`<small>→ 들리지 않음</small>`}</span>
        <span class="row" style="gap:4px"><button class="btn ghost small" data-say="${esc(p.w)}">🔊 듣기</button>${canMic&&o.mode==="live"?`<button class="btn small" data-retry="${esc(p.w)}" data-i="${i}">🎤 다시</button>`:""}</span>
        <span class="tip">${esc(pronTip(p.w,p.heard))}</span><span class="res" id="res-${i}"></span></li>`).join("")}</ul>`:a.diff?`<p style="color:var(--good)">대본의 모든 단어가 잘 들렸어요! 👏</p>`:""}
    ${speakFixHtml(q,said,a)}
