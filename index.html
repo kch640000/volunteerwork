@@ -233,14 +233,17 @@ footer{margin-top:28px;color:var(--muted);font-size:12.5px}
   <div class="idbar need" id="idbar">
     <div id="id-view" hidden><span class="who" id="id-who"></span> <span class="sync" id="sync">채점할 때마다 연습 기록이 저장되고, 다 고친 뒤 <b>선생님께 제출하기</b>를 누르면 제출돼요.</span></div>
     <div class="row" id="id-edit">
-      <b>먼저 반·번호·이름을 입력해 주세요</b>
+      <b>🔒 먼저 로그인해 주세요</b>
       <span class="row" style="gap:6px">2학년
         <label class="sr" for="id-cls">반</label><select id="id-cls"></select>반
         <label class="sr" for="id-num">번호</label><select id="id-num"></select>번
-        <label class="sr" for="id-name">이름</label><input type="text" id="id-name" placeholder="이름" maxlength="10" style="width:7em"></span>
-      <button class="btn small" id="id-save">확인</button>
+        <label class="sr" for="id-name">이름</label><input type="text" id="id-name" placeholder="이름" maxlength="10" style="width:6.5em" autocomplete="off">
+        <label class="sr" for="id-pin">비밀번호 숫자 4자리</label><input type="password" id="id-pin" placeholder="비밀번호 4자리" inputmode="numeric" pattern="[0-9]*" maxlength="4" style="width:8.5em" autocomplete="off"></span>
+      <button class="btn small" id="id-save">시작하기</button>
+      <span class="sync" id="id-msg" style="width:100%"></span>
+      <span class="hint" style="width:100%;margin:0">처음 들어오면 지금 정한 <b>숫자 4개</b>가 내 비밀번호가 돼요. 다음부터는 같은 비밀번호로 들어와요. 다른 친구 번호로는 들어갈 수 없어요. 비밀번호를 잊으면 선생님께 말씀드리세요.</span>
     </div>
-    <button class="btn ghost small" id="id-change" hidden>반·번호 바꾸기</button>
+    <button class="btn ghost small" id="id-change" hidden>로그아웃</button>
   </div>
 
   <nav class="tabs" role="tablist">
@@ -413,7 +416,7 @@ footer{margin-top:28px;color:var(--muted);font-size:12.5px}
     </div>
   </section>
 
-  <footer><b>[버전 7 · 다시 녹음·유연 채점]</b> 배곧해솔중학교 2학년 영어 · Be the Angus of Our Town · 점수는 채점기준표를 바탕으로 한 연습용 예상 점수이며, 실제 점수는 선생님 채점으로 정해집니다.</footer>
+  <footer><b>[버전 8 · 비밀번호 로그인]</b> 배곧해솔중학교 2학년 영어 · Be the Angus of Our Town · 점수는 채점기준표를 바탕으로 한 연습용 예상 점수이며, 실제 점수는 선생님 채점으로 정해집니다.</footer>
 </div>
 
 <script>
@@ -422,44 +425,61 @@ const WORDS = "the to and of a in i is for that you it on with this was be as ar
 <script>
 (function(){
 "use strict";
-/* ================= storage ================= */
-const KEY="angus-practice-v2";
+/* ================= storage (기기 안에서도 학생별로 따로 저장) ================= */
+let who=null;try{who=JSON.parse(localStorage.getItem("angus-who")||"null");}catch(e){}
+if(who&&!who.pin)who=null;
+const sidOf=w=>"2"+String(w.cls).padStart(2,"0")+String(w.num).padStart(2,"0");
+const KEY="angus-practice-v3-"+(who?sidOf(who):"guest");
 const blank=()=>({plan:{},sec:{intro:"",body:"",concl:""},scripts:{},wHist:[],sHist:[],exam:[]});
 let store=blank();
 try{const raw=localStorage.getItem(KEY);if(raw)store=Object.assign(blank(),JSON.parse(raw));}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){}}
 const $=id=>document.getElementById(id);
 /* ================= student id + cloud save (Firebase) ================= */
-let who=null;try{who=JSON.parse(localStorage.getItem("angus-who")||"null");}catch(e){}
 let DB=null,FV=null;
 try{if(window.firebase&&window.FIREBASE_CONFIG){if(!firebase.apps.length)firebase.initializeApp(window.FIREBASE_CONFIG);DB=firebase.firestore();FV=firebase.firestore.FieldValue;}}catch(e){DB=null;}
 let devId=null;try{devId=localStorage.getItem("angus-dev");if(!devId){devId=Math.random().toString(36).slice(2,10);localStorage.setItem("angus-dev",devId);}}catch(e){devId="x";}
-function sidOf(w){return "2"+String(w.cls).padStart(2,"0")+String(w.num).padStart(2,"0");}
-function renderWho(){const has=!!(who&&who.cls&&who.num&&who.name);
+function renderWho(){const has=!!(who&&who.cls&&who.num&&who.name&&who.pin);
   $("idbar").classList.toggle("need",!has);$("id-view").hidden=!has;$("id-edit").hidden=has;$("id-change").hidden=!has;
   if(has){$("id-who").textContent=`${sidOf(who)} ${who.name||""} (2학년 ${who.cls}반 ${who.num}번)`;
     const sy=$("sync");if(!DB){sy.textContent="(이 화면에서는 선생님께 저장되지 않아요. 연습은 그대로 할 수 있어요.)";sy.className="sync";}}}
 (function(){const c=document.getElementById("id-cls"),n=document.getElementById("id-num");
   c.innerHTML='<option value="">-</option>'+Array.from({length:14},(_,i)=>`<option>${i+1}</option>`).join("");
   n.innerHTML='<option value="">-</option>'+Array.from({length:33},(_,i)=>`<option>${i+1}</option>`).join("");
-  const nm=document.getElementById("id-name");
-  if(who){c.value=who.cls;n.value=who.num;nm.value=who.name||"";}
-  document.getElementById("id-save").onclick=()=>{const cv=+c.value,nv=+n.value,nn=nm.value.trim().slice(0,10);if(!cv||!nv||!nn){(!cv?c:!nv?n:nm).focus();return;}who={cls:cv,num:nv,name:nn};try{localStorage.setItem("angus-who",JSON.stringify(who));}catch(e){}renderWho();};
-  document.getElementById("id-change").onclick=()=>{$("id-view").hidden=true;$("id-edit").hidden=false;$("id-change").hidden=true;$("idbar").classList.add("need");};
+  const nm=document.getElementById("id-name"),pn=document.getElementById("id-pin"),msg=document.getElementById("id-msg"),btn=document.getElementById("id-save");
+  pn.addEventListener("input",()=>{pn.value=pn.value.replace(/\D/g,"").slice(0,4);});
+  const say=(t,cls)=>{msg.innerHTML=t;msg.className="sync"+(cls?" "+cls:"");};
+  async function tryLogin(){const cv=+c.value,nv=+n.value,nn=nm.value.trim().slice(0,10),pin=pn.value;
+    if(!cv){c.focus();say("반을 골라 주세요.","err");return;}if(!nv){n.focus();say("번호를 골라 주세요.","err");return;}
+    if(!nn){nm.focus();say("이름을 써 주세요.","err");return;}if(!/^\d{4}$/.test(pin)){pn.focus();say("비밀번호는 <b>숫자 4개</b>로 써 주세요.","err");return;}
+    const sid=sidOf({cls:cv,num:nv});btn.disabled=true;say("확인하는 중…");
+    let first=false;
+    if(DB){
+      try{await DB.collection("pins").doc(sid).set({sid,pin,name:nn,cls:cv,num:nv,ts:FV.serverTimestamp()});first=true;}
+      catch(e){if(e&&e.code&&e.code!=="permission-denied"){btn.disabled=false;say("⚠ 인터넷 연결을 확인하고 다시 눌러 주세요.","err");return;}}
+      if(!first){try{await DB.collection("logins").add({sid,pin,name:nn,dev:devId,ts:FV.serverTimestamp()});}
+        catch(e){btn.disabled=false;pn.value="";pn.focus();
+          say(e&&e.code==="permission-denied"?`✗ <b>${cv}반 ${nv}번</b>의 비밀번호가 맞지 않아요. 다시 써 보세요.<br><small>내 번호인데 처음 들어온 거라면, 다른 친구가 먼저 내 번호로 등록한 거예요. 선생님께 말씀드리면 초기화해 주세요.</small>`:"⚠ 인터넷 연결을 확인하고 다시 눌러 주세요.","err");return;}}
+    }
+    who={cls:cv,num:nv,name:nn,pin};try{localStorage.setItem("angus-who",JSON.stringify(who));}catch(e){}
+    say(first?"✓ 등록했어요! 비밀번호를 꼭 기억하세요. 잠시 뒤 시작해요…":"✓ 로그인했어요. 잠시 뒤 시작해요…","ok");
+    setTimeout(()=>{try{location.reload();}catch(e){}},first?1500:500);}
+  btn.onclick=tryLogin;pn.addEventListener("keydown",e=>{if(e.key==="Enter")tryLogin();});
+  document.getElementById("id-change").onclick=()=>{try{localStorage.removeItem("angus-who");}catch(e){}who=null;try{location.reload();}catch(e){}};
 })();
-function needWho(){if(who&&who.cls&&who.num&&who.name)return false;$("idbar").scrollIntoView({behavior:"smooth",block:"center"});$("id-cls").focus();return true;}
+function needWho(){if(who&&who.cls&&who.num&&who.name&&who.pin)return false;$("idbar").scrollIntoView({behavior:"smooth",block:"center"});$("id-cls").focus();return true;}
 function cloudSave(rec){if(!DB||!who)return Promise.reject("nodb");const sy=$("sync");const isSub=!!rec.sub;if(!isSub){sy.textContent="연습 기록 저장 중…";sy.className="sync";}
-  const doc=Object.assign({cls:who.cls,num:who.num,sid:sidOf(who),name:who.name,dev:devId,ts:FV.serverTimestamp()},rec);
+  const doc=Object.assign({cls:who.cls,num:who.num,sid:sidOf(who),name:who.name,pin:who.pin,dev:devId,ts:FV.serverTimestamp()},rec);
   if(typeof doc.text==="string")doc.text=doc.text.slice(0,3000);
   Object.keys(doc).forEach(k=>{if(doc[k]===undefined||doc[k]===null)delete doc[k];});
   const hm=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
   return DB.collection("results").add(doc).then(()=>{if(!isSub){sy.textContent=`✓ 연습 기록 저장됨 (${hm()})`;sy.className="sync ok";}return hm();})
-    .catch(e=>{if(!isSub){sy.textContent="⚠ 연습 기록을 저장하지 못했어요. 인터넷 연결을 확인해 주세요.";sy.className="sync err";}throw e;});}
+    .catch(e=>{const denied=e&&e.code==="permission-denied";if(!isSub||denied){sy.innerHTML=denied?"⚠ 비밀번호가 초기화되었거나 맞지 않아요. <b>로그아웃</b>을 누르고 다시 로그인해 주세요.":"⚠ 연습 기록을 저장하지 못했어요. 인터넷 연결을 확인해 주세요.";sy.className="sync err";}throw e;});}
 function submitBtnHtml(id,label){return `<div class="submit-box"><button class="btn submit" id="${id}">📮 ${label}</button><span class="sync" id="${id}-msg">${DB?"제출하면 선생님이 이 점수와 내용을 확인해요. 여러 번 제출하면 마지막 제출을 봐요.":"이 화면에서는 제출할 수 없어요. 선생님이 알려 준 주소로 들어와 주세요."}</span></div>`;}
 function wireSubmit(id,rec){const b=$(id);if(!b)return;if(!DB){b.disabled=true;return;}
   b.onclick=()=>{if(needWho())return;b.disabled=true;const m=$(id+"-msg");m.textContent="제출하는 중…";m.className="sync";
     cloudSave(Object.assign({},rec,{sub:true})).then(t=>{m.textContent=`✓ 선생님께 제출했어요 (${t}). 더 고쳐서 다시 제출해도 돼요.`;m.className="sync ok";b.textContent="📮 다시 제출하기";b.disabled=false;})
-      .catch(()=>{m.textContent="⚠ 제출하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.";m.className="sync err";b.disabled=false;});};}
+      .catch(e=>{m.innerHTML=e&&e.code==="permission-denied"?"⚠ 제출하지 못했어요. 맨 위 <b>로그아웃</b> 후 다시 로그인해 주세요.":"⚠ 제출하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.";m.className="sync err";b.disabled=false;});};}
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ================= rubric (2026 2학년 2학기 평가계획 수행평가 세부기준) ================= */
@@ -856,7 +876,7 @@ $("btn-grade").onclick=()=>{const txt=fullText();if(!txt){$("ta-intro").focus();
   if(!isExample&&needWho())return;
   const g=gradeEssay(secsNow());let prev=null;
   if(!isExample){prev=store.wHist.length?store.wHist[store.wHist.length-1]:null;store.wHist.push({t:Date.now(),total:g.total,c:g.crit.map(c=>c.pts),wc:g.wc,err:g.issues.length});
-    cloudSave({type:"w",total:g.total,crit:g.crit.map(c=>c.pts),wc:g.wc,err:g.issues.length,text:txt});if(store.wHist.length>60)store.wHist.shift();save();}
+    cloudSave({type:"w",total:g.total,crit:g.crit.map(c=>c.pts),wc:g.wc,err:g.issues.length,text:txt}).catch(()=>{});if(store.wHist.length>60)store.wHist.shift();save();}
   renderWCard(g,prev,txt);if(window.innerWidth<900)$("w-result").scrollIntoView({behavior:"smooth",block:"start"});};
 let lastW=null;
 function renderWCard(g,prev,txt){lastW={g,txt};$("w-empty").hidden=true;const card=$("w-card");card.hidden=false;
@@ -1155,14 +1175,14 @@ function scoreSpeech(said,o){if(needWho())return;const q=curQ;const script=(stor
   const a=analyzeAnswer(q,said,Object.assign({},o,{script:script||null}));
   const prev=[...store.sHist].reverse().find(h=>h.q===q.id)||null;
   store.sHist.push({t:Date.now(),q:q.id,score:a.total,c:a.crit.map(c=>c.pts),acc:a.acc,wpm:a.wpm,peek:peeked});
-  cloudSave({type:"s",q:q.id,total:a.total,crit:a.crit.map(c=>c.pts),acc:a.acc,wpm:o.mode==="live"?a.wpm:null,mode:o.mode,peek:peeked,text:said});if(store.sHist.length>120)store.sHist.shift();save();
+  cloudSave({type:"s",q:q.id,total:a.total,crit:a.crit.map(c=>c.pts),acc:a.acc,wpm:o.mode==="live"?a.wpm:null,mode:o.mode,peek:peeked,text:said}).catch(()=>{});if(store.sHist.length>120)store.sHist.shift();save();
   lastS={q,said,a};renderSCard(q,said,a,prev,o);
   if(window.innerWidth<900)$("s-result").scrollIntoView({behavior:"smooth",block:"start"});
   if(mode==="exam"){examScores[examStep]=a.total;examTexts[examStep]=`[Q${q.id}] `+said;
     if(examStep===0){examStep=1;setQ(examPair[1]);$("s-sum").innerHTML=`<div class="sum20"><span>1차 ${a.total}/10점 · 이제 왼쪽에서 2차 질문에 답해요 →</span></div>`;}
     else{const tot=examScores[0]+examScores[1];const pe=store.exam.length?store.exam[store.exam.length-1].total:null;
       store.exam.push({t:Date.now(),total:tot,q:[examPair[0].id,examPair[1].id]});save();
-      cloudSave({type:"x",total:tot,q:examPair[0].id+"+"+examPair[1].id,crit:[examScores[0],examScores[1]]});
+      cloudSave({type:"x",total:tot,q:examPair[0].id+"+"+examPair[1].id,crit:[examScores[0],examScores[1]]}).catch(()=>{});
       $("s-sum").innerHTML=`<div class="sum20"><span class="big">${tot}<small style="font-size:16px"> / 20</small></span><div><b>실전 모드 예상 점수</b> · ${band(tot,20)} ${deltaHtml(tot,pe)}<br><span class="hint" style="margin:0">1차 ${examScores[0]} + 2차 ${examScores[1]}</span></div><button class="btn small" id="btn-again">새 질문으로 다시</button></div>${submitBtnHtml("btn-x-sub","실전 점수를 선생님께 제출하기")}`;
       wireSubmit("btn-x-sub",{type:"x",total:tot,q:examPair[0].id+"+"+examPair[1].id,crit:[examScores[0],examScores[1]],text:examTexts.join(" / ")});
       $("btn-again").onclick=newExam;}}}

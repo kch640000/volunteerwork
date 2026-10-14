@@ -82,6 +82,7 @@ tbody tr:hover{background:var(--yarn-soft)}
         <div class="seg" role="group" aria-label="보기">
           <button id="v-sum" aria-pressed="true">학생별 요약</button>
           <button id="v-raw" aria-pressed="false">전체 기록</button>
+          <button id="v-pin" aria-pressed="false">🔑 비밀번호</button>
         </div>
         <label class="row" style="gap:4px"><input type="checkbox" id="f-sub"> 제출만 보기</label>
         <button class="btn ghost small" id="btn-refresh">새로고침</button>
@@ -107,7 +108,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",
 if(!window.firebase||!window.FIREBASE_CONFIG){$("login-err").hidden=false;$("login-err").textContent="Firebase를 불러오지 못했어요. firebase-config.js 파일이 같은 폴더에 있는지 확인해 주세요.";return;}
 firebase.initializeApp(window.FIREBASE_CONFIG);
 const auth=firebase.auth(),db=firebase.firestore();
-let rows=[],view="sum",openKey=null;
+let rows=[],pins={},view="sum",openKey=null,pinConfirm=null;
 
 $("btn-login").onclick=async()=>{$("login-err").hidden=true;const p=new firebase.auth.GoogleAuthProvider();
   try{await auth.signInWithPopup(p);}catch(e){
@@ -118,22 +119,24 @@ auth.onAuthStateChanged(u=>{$("login-box").hidden=!!u;$("main").hidden=!u;if(u){
 
 function status(t,err){const s=$("status");s.hidden=!t;s.textContent=t||"";s.className="msg"+(err?" err":"");}
 async function load(){status("불러오는 중…");
-  try{const snap=await db.collection("results").orderBy("ts","desc").limit(10000).get();
+  try{pins={};try{const ps=await db.collection("pins").get();ps.docs.forEach(d=>{const x=d.data();pins[d.id]=Object.assign({sid:d.id},x,{t:x.ts&&x.ts.toDate?x.ts.toDate():null});});}catch(e){}
+    const snap=await db.collection("results").orderBy("ts","desc").limit(10000).get();
     rows=snap.docs.map(d=>{const x=d.data();return Object.assign({id:d.id},x,{t:x.ts&&x.ts.toDate?x.ts.toDate():null});});
     status(rows.length?"":"아직 저장된 결과가 없어요. 학생이 연습실에서 반·번호·이름을 입력하고 채점하면 여기에 나타나요.");
-    const cls=[...new Set(rows.map(r=>r.cls))].sort((a,b)=>a-b);const sel=$("f-cls"),cur=sel.value;
+    const cls=[...new Set(rows.map(r=>r.cls).concat(Object.values(pins).map(p=>p.cls)))].filter(Boolean).sort((a,b)=>a-b);const sel=$("f-cls"),cur=sel.value;
     sel.innerHTML='<option value="">전체</option>'+cls.map(c=>`<option value="${c}">${c}반</option>`).join("");sel.value=cur;
     render();
   }catch(e){status(e.code==="permission-denied"?"이 계정에는 결과를 볼 권한이 없어요. Firestore 규칙에 적힌 선생님 이메일과 지금 로그인한 계정이 같은지 확인해 주세요.":"불러오지 못했어요 ("+(e.code||e.message)+")",true);}}
 $("btn-refresh").onclick=load;$("f-sub").onchange=()=>render();$("f-cls").onchange=()=>{openKey=null;render();};
-$("v-sum").onclick=()=>{view="sum";$("v-sum").setAttribute("aria-pressed","true");$("v-raw").setAttribute("aria-pressed","false");render();};
-$("v-raw").onclick=()=>{view="raw";$("v-raw").setAttribute("aria-pressed","true");$("v-sum").setAttribute("aria-pressed","false");render();};
+
+$("v-raw").onclick=()=>setView("raw");$("v-sum").onclick=()=>setView("sum");$("v-pin").onclick=()=>setView("pin");
+function setView(v){view=v;["sum","raw","pin"].forEach(k=>$("v-"+k).setAttribute("aria-pressed",k===v?"true":"false"));render();}
 
 const fmt=d=>d?`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`:"—";
 const typeName={w:"쓰기",s:"말하기(문항)",x:"말하기(실전)"};
 function filtered(){const c=$("f-cls").value,so=$("f-sub").checked;return rows.filter(r=>(!c||String(r.cls)===c)&&(!so||r.sub));}
 function summarize(list){const map=new Map();
-  list.slice().sort((a,b)=>(a.t||0)-(b.t||0)).forEach(r=>{const k=r.cls+"-"+r.num;if(!map.has(k))map.set(k,{cls:r.cls,num:r.num,sid:r.sid||("2"+String(r.cls).padStart(2,"0")+String(r.num).padStart(2,"0")),name:"",w:[],s:[],x:[],last:null});const m=map.get(k);if(r.name)m.name=r.name;(m[r.type]||[]).push(r);if(r.t&&(!m.last||r.t>m.last))m.last=r.t;});
+  list.slice().sort((a,b)=>(a.t||0)-(b.t||0)).forEach(r=>{const k=r.cls+"-"+r.num;if(!map.has(k))map.set(k,{cls:r.cls,num:r.num,sid:r.sid||("2"+String(r.cls).padStart(2,"0")+String(r.num).padStart(2,"0")),name:"",w:[],s:[],x:[],last:null});const m=map.get(k);if(r.name)m.name=r.name;if(pins[m.sid]&&pins[m.sid].name)m.name=pins[m.sid].name;(m[r.type]||[]).push(r);if(r.t&&(!m.last||r.t>m.last))m.last=r.t;});
   return [...map.values()].map(m=>{const st=a=>a.length?{n:a.length,first:a[0].total,best:Math.max(...a.map(r=>r.total)),last:a[a.length-1].total}:{n:0};
     const lastSub=a=>{const x=a.filter(r=>r.sub);return x.length?x[x.length-1]:null;};
     return Object.assign(m,{WS:lastSub(m.w),XS:lastSub(m.x),SS:m.s.filter(r=>r.sub).length,W:st(m.w),X:st(m.x),Sn:m.s.length,Savg:m.s.length?Math.round(m.s.reduce((a,r)=>a+r.total,0)/m.s.length*10)/10:null});}).sort((a,b)=>a.cls-b.cls||a.num-b.num);}
@@ -145,13 +148,22 @@ function render(){const list=filtered();const sum=summarize(list);
    <div class="kpi"><b>${avg(ws.map(s=>s.W.last))}</b><span>쓰기 최근 점수 평균 / 20</span></div>
    <div class="kpi"><b>${avg(ws.map(s=>s.W.last-s.W.first))}</b><span>쓰기 평균 향상 (첫 → 최근)</span></div>
    <div class="kpi"><b>${avg(xs.map(s=>s.X.last))}</b><span>말하기 실전 최근 평균 / 20</span></div>`;
+  if(view==="pin"){const c=$("f-cls").value;const list=Object.values(pins).filter(p=>!c||String(p.cls)===c).sort((a,b)=>a.sid.localeCompare(b.sid));
+    $("table-box").innerHTML=`<p class="muted" style="margin:0 0 8px">학생이 처음 로그인할 때 정한 비밀번호예요. 다른 친구가 먼저 등록했거나 비밀번호를 잊었다면 <b>초기화</b>를 누르세요. 그 학생은 다음 로그인 때 새 비밀번호를 정할 수 있어요. (이미 낸 기록은 지워지지 않아요)</p>
+     <table><thead><tr><th>학번</th><th>등록한 이름</th><th>비밀번호</th><th>등록 시간</th><th>기록 수</th><th></th></tr></thead><tbody>
+     ${list.map(p=>{const n=rows.filter(r=>r.sid===p.sid).length;return `<tr><td>${esc(p.sid)}</td><td><b>${esc(p.name||"")}</b></td><td style="font-family:var(--f-en);font-size:16px;letter-spacing:2px"><b>${esc(p.pin||"")}</b></td><td class="muted">${fmt(p.t)}</td><td>${n}</td><td>${pinConfirm===p.sid?`<span class="row" style="gap:4px"><button class="btn small" style="background:var(--bad);border-color:var(--bad)" data-reset-yes="${esc(p.sid)}">초기화</button><button class="btn ghost small" data-reset-no="1">취소</button></span>`:`<button class="btn ghost small" data-reset="${esc(p.sid)}">초기화</button>`}</td></tr>`;}).join("")||'<tr><td colspan="6" class="muted">아직 비밀번호를 등록한 학생이 없어요.</td></tr>'}</tbody></table>`;
+    $("table-box").querySelectorAll("[data-reset]").forEach(b=>b.onclick=()=>{pinConfirm=b.dataset.reset;render();});
+    $("table-box").querySelectorAll("[data-reset-no]").forEach(b=>b.onclick=()=>{pinConfirm=null;render();});
+    $("table-box").querySelectorAll("[data-reset-yes]").forEach(b=>b.onclick=async()=>{const sid=b.dataset.resetYes;b.disabled=true;
+      try{await db.collection("pins").doc(sid).delete();delete pins[sid];pinConfirm=null;status(`${sid} 비밀번호를 초기화했어요.`);render();}catch(e){status("초기화하지 못했어요 ("+(e.code||e.message)+")",true);b.disabled=false;}});
+    $("detail").hidden=true;return;}
   if(view==="sum"){
     $("table-box").innerHTML=`<table><thead><tr><th>학번</th><th>이름</th><th>📮 쓰기 제출</th><th>📮 말하기 제출</th><th>쓰기 횟수</th><th>쓰기 첫</th><th>최고</th><th>최근</th><th>향상</th><th>말하기 실전</th><th>실전 첫</th><th>최고</th><th>최근</th><th>향상</th><th>문항 연습</th><th>문항 평균/10</th><th>마지막 활동</th></tr></thead><tbody>
      ${sum.map(s=>`<tr data-k="${s.cls}-${s.num}"><td>${s.sid}</td><td><b>${esc(s.name)}</b></td><td>${s.WS?`<b>${s.WS.total}</b>/20`:'<span class="muted">미제출</span>'}</td><td>${s.XS?`<b>${s.XS.total}</b>/20`:s.SS?`문항 ${s.SS}개`:'<span class="muted">미제출</span>'}</td><td>${s.W.n}</td><td>${s.W.first??"—"}</td><td>${s.W.best??"—"}</td><td><b>${s.W.last??"—"}</b></td><td>${diff(s.W.first,s.W.last)}</td><td>${s.X.n}</td><td>${s.X.first??"—"}</td><td>${s.X.best??"—"}</td><td><b>${s.X.last??"—"}</b></td><td>${diff(s.X.first,s.X.last)}</td><td>${s.Sn}</td><td>${s.Savg??"—"}</td><td class="muted">${fmt(s.last)}</td></tr>`).join("")}</tbody></table>
      <p class="muted" style="margin:8px 0 0">줄을 누르면 그 학생의 글과 말한 내용을 볼 수 있어요.</p>`;
   }else{
-    $("table-box").innerHTML=`<table><thead><tr><th>시간</th><th>학번</th><th>이름</th><th>제출</th><th>종류</th><th>질문</th><th>점수</th><th>항목별</th><th>발음</th><th>내용</th></tr></thead><tbody>
-     ${list.map(r=>`<tr data-k="${r.cls}-${r.num}"><td>${fmt(r.t)}</td><td>${r.sid||""}</td><td>${esc(r.name||"")}</td><td>${r.sub?"📮 제출":'<span class="muted">연습</span>'}</td><td>${typeName[r.type]||r.type}</td><td>${esc(r.q||"")}</td><td><b>${r.total}</b></td><td>${(r.crit||[]).join(" / ")}</td><td>${r.acc!=null?r.acc+"%":""}</td><td class="muted" style="max-width:320px;overflow:hidden;text-overflow:ellipsis">${esc((r.text||"").slice(0,80))}</td></tr>`).join("")}</tbody></table>`;}
+    $("table-box").innerHTML=`<table><thead><tr><th>시간</th><th>학번</th><th>이름</th><th>비밀번호</th><th>제출</th><th>종류</th><th>질문</th><th>점수</th><th>항목별</th><th>발음</th><th>내용</th></tr></thead><tbody>
+     ${list.map(r=>`<tr data-k="${r.cls}-${r.num}"><td>${fmt(r.t)}</td><td>${r.sid||""}</td><td>${esc(r.name||"")}</td><td class="muted">${esc(r.pin||"")}</td><td>${r.sub?"📮 제출":'<span class="muted">연습</span>'}</td><td>${typeName[r.type]||r.type}</td><td>${esc(r.q||"")}</td><td><b>${r.total}</b></td><td>${(r.crit||[]).join(" / ")}</td><td>${r.acc!=null?r.acc+"%":""}</td><td class="muted" style="max-width:320px;overflow:hidden;text-overflow:ellipsis">${esc((r.text||"").slice(0,80))}</td></tr>`).join("")}</tbody></table>`;}
   $("table-box").querySelectorAll("tbody tr").forEach(tr=>tr.onclick=()=>{openKey=tr.dataset.k;renderDetail();$("detail").scrollIntoView({behavior:"smooth"});});
   renderDetail();}
 function renderDetail(){const box=$("detail");if(!openKey){box.hidden=true;return;}
@@ -164,10 +176,11 @@ function renderDetail(){const box=$("detail");if(!openKey){box.hidden=true;retur
   $("btn-close").onclick=()=>{openKey=null;box.hidden=true;};}
 
 $("btn-csv").onclick=()=>{const list=filtered();let csv;
-  if(view==="sum"){const sum=summarize(list);csv=[["학번","이름","반","번호","쓰기 제출 점수","말하기 실전 제출 점수","말하기 문항 제출 수","쓰기 횟수","쓰기 첫","쓰기 최고","쓰기 최근","쓰기 향상","말하기 실전 횟수","실전 첫","실전 최고","실전 최근","실전 향상","문항 연습 횟수","문항 평균(10)","마지막 활동"]].concat(sum.map(s=>[s.sid,s.name,s.cls,s.num,s.WS?s.WS.total:"",s.XS?s.XS.total:"",s.SS,s.W.n,s.W.first??"",s.W.best??"",s.W.last??"",s.W.n?s.W.last-s.W.first:"",s.X.n,s.X.first??"",s.X.best??"",s.X.last??"",s.X.n?s.X.last-s.X.first:"",s.Sn,s.Savg??"",fmt(s.last)]));}
+  if(view==="pin"){csv=[["학번","등록한 이름","반","번호","비밀번호","등록 시간"]].concat(Object.values(pins).sort((a,b)=>a.sid.localeCompare(b.sid)).map(p=>[p.sid,p.name||"",p.cls||"",p.num||"",p.pin||"",p.t?p.t.toLocaleString("ko-KR"):""]));}
+  else if(view==="sum"){const sum=summarize(list);csv=[["학번","이름","반","번호","쓰기 제출 점수","말하기 실전 제출 점수","말하기 문항 제출 수","쓰기 횟수","쓰기 첫","쓰기 최고","쓰기 최근","쓰기 향상","말하기 실전 횟수","실전 첫","실전 최고","실전 최근","실전 향상","문항 연습 횟수","문항 평균(10)","마지막 활동"]].concat(sum.map(s=>[s.sid,s.name,s.cls,s.num,s.WS?s.WS.total:"",s.XS?s.XS.total:"",s.SS,s.W.n,s.W.first??"",s.W.best??"",s.W.last??"",s.W.n?s.W.last-s.W.first:"",s.X.n,s.X.first??"",s.X.best??"",s.X.last??"",s.X.n?s.X.last-s.X.first:"",s.Sn,s.Savg??"",fmt(s.last)]));}
   else csv=[["시간","학번","이름","반","번호","제출","종류","질문","점수","항목1","항목2","항목3","항목4","발음정확도","단어수","오류수","내용"]].concat(list.map(r=>[r.t?r.t.toLocaleString("ko-KR"):"",r.sid||"",r.name||"",r.cls,r.num,r.sub?"제출":"연습",typeName[r.type]||r.type,r.q||"",r.total,...[0,1,2,3].map(i=>(r.crit||[])[i]??""),r.acc??"",r.wc??"",r.err??"",r.text||""]));
   const out="﻿"+csv.map(row=>row.map(v=>{v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(",")).join("\r\n");
-  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([out],{type:"text/csv;charset=utf-8"}));a.download=`angus_${view==="sum"?"학생별요약":"전체기록"}_${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();};
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([out],{type:"text/csv;charset=utf-8"}));a.download=`angus_${view==="sum"?"학생별요약":view==="pin"?"비밀번호":"전체기록"}_${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();};
 })();
 </script>
 </body>
