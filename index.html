@@ -416,7 +416,7 @@ footer{margin-top:28px;color:var(--muted);font-size:12.5px}
     </div>
   </section>
 
-  <footer><b>[버전 8 · 비밀번호 로그인]</b> 배곧해솔중학교 2학년 영어 · Be the Angus of Our Town · 점수는 채점기준표를 바탕으로 한 연습용 예상 점수이며, 실제 점수는 선생님 채점으로 정해집니다.</footer>
+  <footer><b>[버전 8.1 · 비밀번호 로그인 · 40번까지]</b> 배곧해솔중학교 2학년 영어 · Be the Angus of Our Town · 점수는 채점기준표를 바탕으로 한 연습용 예상 점수이며, 실제 점수는 선생님 채점으로 정해집니다.</footer>
 </div>
 
 <script>
@@ -445,7 +445,7 @@ function renderWho(){const has=!!(who&&who.cls&&who.num&&who.name&&who.pin);
     const sy=$("sync");if(!DB){sy.textContent="(이 화면에서는 선생님께 저장되지 않아요. 연습은 그대로 할 수 있어요.)";sy.className="sync";}}}
 (function(){const c=document.getElementById("id-cls"),n=document.getElementById("id-num");
   c.innerHTML='<option value="">-</option>'+Array.from({length:14},(_,i)=>`<option>${i+1}</option>`).join("");
-  n.innerHTML='<option value="">-</option>'+Array.from({length:33},(_,i)=>`<option>${i+1}</option>`).join("");
+  n.innerHTML='<option value="">-</option>'+Array.from({length:40},(_,i)=>`<option>${i+1}</option>`).join("");
   const nm=document.getElementById("id-name"),pn=document.getElementById("id-pin"),msg=document.getElementById("id-msg"),btn=document.getElementById("id-save");
   pn.addEventListener("input",()=>{pn.value=pn.value.replace(/\D/g,"").slice(0,4);});
   const say=(t,cls)=>{msg.innerHTML=t;msg.className="sync"+(cls?" "+cls:"");};
